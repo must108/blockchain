@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
 	"math/big"
 )
@@ -119,9 +118,7 @@ func ToHex(num int64) []byte {
 	// BigEndian specifies the organization of our bytes
 
 	// if err has a value
-	if err != nil {
-		log.Panic(err) // an unexpected error
-	}
+	Handle(err)
 
 	// return the bytes in buff
 	return buff.Bytes()
