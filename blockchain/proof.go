@@ -34,8 +34,9 @@ const diff = 18 // static difficulty
 // however, in a genuine blockchain, difficulty increments over time
 
 type ProofOfWork struct {
-	Block  *Block
-	Target *big.Int
+	Block  *Block   // a specific block
+	Target *big.Int // a value that determines the
+	// validity of a block. based on the diff value
 }
 
 func NewProof(b *Block) *ProofOfWork {
@@ -46,6 +47,7 @@ func NewProof(b *Block) *ProofOfWork {
 	// lsh basically just does a left shift
 	target.Lsh(target, uint(256-diff))
 
+	// creates and returns a new proof of work
 	pow := &ProofOfWork{b, target}
 	return pow
 }
@@ -72,36 +74,42 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	var intHash big.Int
 	var hash [32]byte
 
-	nonce := 0
+	nonce := 0 // defines a nonce
 
 	for nonce < math.MaxInt64 {
-		data := pow.InitData(nonce)
-		hash = sha256.Sum256(data)
+		// essentially an infinite loop
+		data := pow.InitData(nonce) // concats our data
+		hash = sha256.Sum256(data)  // hashes our concatted data
 
 		fmt.Printf("\r%x", hash)
-		intHash.SetBytes((hash[:]))
+		intHash.SetBytes((hash[:])) // sets intHash to the full slice of hashes
 
-		if intHash.Cmp(pow.Target) == -1 {
-			break
+		if intHash.Cmp(pow.Target) == -1 { // if intHash is less than Target
+			break // break as we've found a valid hash for the block
 		} else {
-			nonce++
+			nonce++ // continue with a higher nonce until we find a good val
 		}
 	}
 
 	fmt.Println()
 
-	return nonce, hash[:]
+	return nonce, hash[:] // returns our nonce value and slice of hash
 }
 
+// validates a block
 func (pow *ProofOfWork) Validate() bool {
 	var intHash big.Int
 
 	data := pow.InitData(pow.Block.Nonce)
+	// initializes the data by combining prev hash with nonce, curr data, and diff
 
 	hash := sha256.Sum256(data)
 	intHash.SetBytes(hash[:])
+	// hashes the data and converts the hash (a slice of bytes) to a bigint
 
 	return intHash.Cmp(pow.Target) == -1
+	// returns true if intHash is less than target.
+	// otherwise false
 }
 
 func ToHex(num int64) []byte {
