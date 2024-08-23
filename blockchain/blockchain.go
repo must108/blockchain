@@ -2,12 +2,16 @@ package blockchain
 
 import (
 	"fmt"
+	"os"
+	"runtime"
 
 	"github.com/dgraph-io/badger"
 )
 
 const (
-	dbPath = "./tmp/blocks"
+	dbPath      = "./tmp/blocks"
+	dbFile      = "./tmp/blocks/MANIFEST" // verify blockchain db existence
+	genesisData = "First Transaction from Genesis"
 )
 
 type BlockChain struct {
@@ -20,9 +24,53 @@ type BlockChainIterator struct {
 	Database    *badger.DB // pointer to badger db
 }
 
-func InitBlockChain() *BlockChain {
+func DBexists() bool {
+	// if the db doesnt exist, return false, else true
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+func ContinueBlockChain(address string) *BlockChain {
+	if DBexists() == false {
+		fmt.Println("No existing blockchain found, create one!")
+		runtime.Goexit()
+	}
+
 	var lastHash []byte
 
+	opts := badger.DefaultOptions(dbPath)
+	opts.Dir = dbPath
+	opts.ValueDir = dbPath
+
+	db, err := badger.Open(opts)
+	Handle(err)
+
+	err = db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		Handle(err)
+		lastHash, err = item.Value()
+
+		return err
+	})
+	Handle(err)
+
+	chain := BlockChain{lastHash, db}
+
+	return &chain
+}
+
+func InitBlockChain(address string) *BlockChain {
+	var lastHash []byte
+
+	// checks if db exists
+	if DBexists() {
+		fmt.Println("Blockchain already exists")
+		runtime.Goexit() // exit if so
+	}
+
+	// create badger db
 	opts := badger.DefaultOptions(dbPath) // badgerdb default options
 	opts.Dir = dbPath                     // where keys and metadata are stored in the db
 	opts.ValueDir = dbPath                // where values are stored
@@ -39,9 +87,10 @@ func InitBlockChain() *BlockChain {
 		// checks the transaction for a lasthash key (lh),
 		// if not found, will return badget.ErrKeyNotFound
 		if _, err := txn.Get([]byte("lh")); err == badger.ErrKeyNotFound {
-			fmt.Println("No existing blockchain found")
-			genesis := Genesis()
-			fmt.Println("Genesis proved") // when the genesis is initialized
+			// address of this transaction is rewarded
+			cbtx := CoinbaseTx(address, genesisData)
+			genesis := Genesis(cbtx)
+			fmt.Println("Genesis created") // when the genesis is initialized
 			// txn Set puts a val into our database
 			// in this case, genesis Hash is used as the key,
 			// and the serialized genesis value is used as the val.

@@ -60,7 +60,7 @@ func (pow *ProofOfWork) InitData(nonce int) []byte {
 			// to create a better hash
 			// joins the 4 values
 			pow.Block.PrevHash,
-			pow.Block.Data,
+			pow.Block.HashTransactions(),
 			ToHex(int64(nonce)), // nonce value in bytes
 			ToHex(int64(diff)),  // diff value in bytes
 		},

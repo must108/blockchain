@@ -69,6 +69,9 @@ func (tx *Transaction) IsCoinbase() bool {
 	return len(tx.Inputs) == 1 && len(tx.Inputs[0].ID) == 0 && tx.Inputs[0].Out == -1
 }
 
+// if the unlock functions return true, it means
+// that the account owns the output/ref to output from input
+
 // check if the signature value is the same as the passed in data
 func (in *TxInput) CanUnlock(data string) bool {
 	return in.Sig == data
@@ -83,5 +86,3 @@ func (out *TxOutput) CanBeUnlocked(data string) bool {
 // known as a coinbase transaction
 // reward associated with a coinbase transaction
 // awarded to user that mines a specific coinbase
-
-// 8:10
