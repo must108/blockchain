@@ -86,3 +86,4 @@ func (out *TxOutput) CanBeUnlocked(data string) bool {
 // known as a coinbase transaction
 // reward associated with a coinbase transaction
 // awarded to user that mines a specific coinbase
+// 8:10
