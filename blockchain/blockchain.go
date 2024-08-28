@@ -186,3 +186,25 @@ func (iter *BlockChainIterator) Next() *Block {
 
 	return block
 }
+
+// unspent transactions - transactions that have outputs not referenced by other inputs
+
+func (chain *BlockChain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTxs []Transaction // arr of transactions
+
+	spentTXOs := make(map[string][]int) // mapped string key with val of slice int
+
+	iter := chain.Iterator() // iterate thru blockchain
+
+	for {
+		block := iter.Next() // get block from db
+
+		if len(block.PrevHash) == 0 { // if len of block prevhash is 0, block is genesis
+			break
+		}
+	}
+
+	return unspentTxs
+}
+
+// 15:00
