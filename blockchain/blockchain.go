@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -50,7 +51,10 @@ func ContinueBlockChain(address string) *BlockChain {
 	err = db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
-		lastHash, err = item.Value()
+		err = item.Value(func(val []byte) error {
+			lastHash = append([]byte{}, val...)
+			return nil
+		})
 
 		return err
 	})
@@ -120,7 +124,7 @@ func InitBlockChain(address string) *BlockChain {
 	return &blockchain
 }
 
-func (chain *BlockChain) AddBlock(data string) {
+func (chain *BlockChain) AddBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	// read-only type transaction, takes in a closure
@@ -138,7 +142,7 @@ func (chain *BlockChain) AddBlock(data string) {
 
 	Handle(err)
 
-	newBlock := CreateBlock(data, lastHash)
+	newBlock := CreateBlock(transactions, lastHash)
 	// creates a new block with our data and the lastHash value
 
 	err = chain.Database.Update(func(txn *badger.Txn) error {
@@ -199,6 +203,34 @@ func (chain *BlockChain) FindUnspentTransactions(address string) []Transaction {
 	for {
 		block := iter.Next() // get block from db
 
+		for _, tx := range block.Transactions { // iterate through transactions
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			for outIdx, out := range tx.Outputs { // iterate thru transaction
+				if spentTXOs[txID] != nil { // if the map with a specific txID exists
+					for _, spentOut := range spentTXOs[txID] { // iterate thru that map
+						if spentOut == outIdx { // is the spentOut index equal to the output index
+							continue Outputs // continue with the outputs for loop
+						}
+					}
+				}
+				if out.CanBeUnlocked(address) {
+					unspentTxs = append(unspentTxs, *tx)
+				} // append all transactions that can be unlocked into unspentTxs
+			}
+
+			if tx.IsCoinbase() == false { // check if this is a coinbase transaction
+				for _, in := range tx.Inputs {
+					if in.CanUnlock(address) { // if in can unlock a specific address
+						inTxID := hex.EncodeToString(in.ID)           // encode in.ID
+						spentTXOs[inTxID] = append(spentTXOs[inTxID]) // append a spent transaction
+						// with the encoded id to spentTxos
+					}
+				}
+			}
+		}
+
 		if len(block.PrevHash) == 0 { // if len of block prevhash is 0, block is genesis
 			break
 		}
@@ -207,4 +239,45 @@ func (chain *BlockChain) FindUnspentTransactions(address string) []Transaction {
 	return unspentTxs
 }
 
-// 15:00
+func (chain *BlockChain) FindUTXO(address string) []TxOutput {
+	var UTXOs []TxOutput // array of transaction outputs
+	unspentTransactions := chain.FindUnspentTransactions(address)
+	// use our method to find unspent transaction
+
+	for _, tx := range unspentTransactions { // iterate thru unspentTransactions
+		for _, out := range tx.Outputs { // iterate thru transaction outputs
+			if out.CanBeUnlocked(address) { // check if output can be unlocked
+				UTXOs = append(UTXOs, out) // if so, append it to UTXOs
+			}
+		}
+	}
+
+	return UTXOs // return UTXOs
+}
+
+// enables us to create normal transactions, that are not coinbase transactions
+// takes in address and a specified amount, outputs an int and a map w string and int
+func (chain *BlockChain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOuts := make(map[string][]int)
+	unspentTxs := chain.FindUnspentTransactions(address) // finds unspent txns
+	accumulated := 0
+
+Work:
+	for _, tx := range unspentTxs { // iterates thru unspent transactions
+		txID := hex.EncodeToString(tx.ID) // get tx id. and encode into string
+
+		for outIdx, out := range tx.Outputs { // iterate thru outputs
+			if out.CanBeUnlocked(address) && accumulated < amount { // can output be unlocked,
+				// and is the accumulated less than the amnt we want to send
+				accumulated += out.Value
+				unspentOuts[txID] = append(unspentOuts[txID], outIdx) // append new outIdx to unspentOuts
+
+				if accumulated >= amount { // if accumulated is greater or equal to amount, break
+					break Work
+				}
+			}
+		}
+	}
+
+	return accumulated, unspentOuts // generate general transaction with these vals
+}

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
+	"log"
 )
 
 type Transaction struct {
@@ -80,6 +82,39 @@ func (in *TxInput) CanUnlock(data string) bool {
 // check if the Pubkey is the same as the passed in data
 func (out *TxOutput) CanBeUnlocked(data string) bool {
 	return out.PubKey == data
+}
+
+func NewTransaction(from, to string, amount int, chain *BlockChain) *Transaction {
+	var inputs []TxInput
+	var outputs []TxOutput
+
+	// get the accumulator and validOutputs from the method
+	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
+
+	if acc < amount {
+		log.Panic("Error: not enough funds")
+	}
+
+	for txid, outs := range validOutputs { // iterate thru validOutputs
+		txID, err := hex.DecodeString(txid) // decode string from txid
+		Handle(err)
+
+		for _, out := range outs { // iterate thru transaction outs
+			input := TxInput{txID, out, from} // create a new input for every unspent output
+			inputs = append(inputs, input)    // append every new input for the txn
+		}
+	}
+
+	outputs = append(outputs, TxOutput{amount, to}) // append a new output with new information
+
+	if acc > amount {
+		outputs = append(outputs, TxOutput{acc - amount, from})
+	} // if there are left over tokens in the senders account
+
+	tx := Transaction{nil, inputs, outputs}
+	tx.SetID()
+
+	return &tx
 }
 
 // genesis block has our first transaction
